@@ -139,7 +139,11 @@ light:
     id: "PLP_RGB_Lights"
     red: red_channel
     green: green_channel
-    blue: blue_channel    
+    blue: blue_channel
+    on_turn_on:
+      - uart.write: { id: rs485_uart, data: [0x50, 0x4C, 0x31, 0x0D] }  # PL1\r
+    on_turn_off:
+      - uart.write: { id: rs485_uart, data: [0x50, 0x4C, 0x30, 0x0D] }  # PL0\r    
     on_state:
       then:
         - lambda: |-
@@ -152,14 +156,6 @@ light:
 
 # --- Relay Control ---
 switch:  
-  - platform: template
-    name: "LED Control"
-    turn_on_action:
-      - uart.write: { id: rs485_uart, data: [0x50, 0x4C, 0x31, 0x0D] }  # PL1\r
-    turn_off_action:
-      - uart.write: { id: rs485_uart, data: [0x50, 0x4C, 0x30, 0x0D] }  # PL0\r
-    optimistic: true
-
   - platform: template
     name: "Relay A"
     turn_on_action:
