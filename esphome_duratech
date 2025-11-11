@@ -1,0 +1,243 @@
+esphome:
+  name: duratech-led
+  friendly_name: Duratech-LED
+
+esp32:
+  board: esp32-s3-devkitc-1
+  framework:
+    type: esp-idf
+
+# Enable logging
+logger:
+
+# RS485 UART
+uart:
+  id: rs485_uart
+  tx_pin: GPIO17
+  rx_pin: GPIO18
+  baud_rate: 9600
+  stop_bits: 1
+  parity: NONE
+  debug:
+    direction: RX
+    dummy_receiver: false
+    after:
+      delimiter: "\n"
+    sequence:
+      - lambda: UARTDebug::log_string(direction, bytes);
+
+# Globals for RGB values
+globals:
+  - id: plp_r
+    type: int
+    initial_value: '255'
+  - id: plp_g
+    type: int
+    initial_value: '128'
+  - id: plp_b
+    type: int
+    initial_value: '64'
+
+# --- Combined Select Section ---
+select:
+  - platform: template
+    name: "PLP Scene Selector"
+    optimistic: true
+    options:
+      - "Scene 1 – Blue"
+      - "Scene 2 – Green"
+      - "Scene 3 – Red"
+      - "Scene 4 – Cyan"
+      - "Scene 5 – Magenta"
+      - "Scene 6 – Yellow"
+      - "Scene 7 – Fade"
+      - "Scene 8 – Jump"
+      - "Scene 9 – Party"
+      - "Scene 10 – Relax"
+      - "Scene 11 – Tropical"
+      - "Scene 12 – White 1"
+      - "Scene 13 – White 2"
+      - "Scene 14 – White 3"
+    set_action:
+      - lambda: |-
+          std::map<std::string, std::string> scene_map = {
+            {"Scene 1 – Blue", "PS01\r"}, {"Scene 2 – Green", "PS02\r"},
+            {"Scene 3 – Red", "PS03\r"}, {"Scene 4 – Cyan", "PS04\r"},
+            {"Scene 5 – Magenta", "PS05\r"}, {"Scene 6 – Yellow", "PS06\r"},
+            {"Scene 7 – Fade", "PS07\r"}, {"Scene 8 – Jump", "PS08\r"},
+            {"Scene 9 – Party", "PS09\r"}, {"Scene 10 – Relax", "PS10\r"},
+            {"Scene 11 – Tropical", "PS11\r"}, {"Scene 12 – White 1", "PS12\r"},
+            {"Scene 13 – White 2", "PS13\r"}, {"Scene 14 – White 3", "PS14\r"}
+          };
+          if (scene_map.count(x)) {
+            id(rs485_uart).write_str(scene_map[x].c_str());
+          }
+
+  - platform: template
+    name: "PLP Color Temperature"
+    optimistic: true
+    options:
+      - "500K"
+      - "1000K"
+      - "1500K"
+      - "2000K"
+      - "2500K"
+      - "3000K"
+      - "3500K"
+    set_action:
+      - lambda: |-
+          std::map<std::string, std::string> temp_map = {
+            {"500K", "PT005\r"}, {"1000K", "PT010\r"}, {"1500K", "PT015\r"},
+            {"2000K", "PT020\r"}, {"2500K", "PT025\r"}, {"3000K", "PT030\r"},
+            {"3500K", "PT035\r"}
+          };
+          if (temp_map.count(x)) {
+            id(rs485_uart).write_str(temp_map[x].c_str());
+          }
+
+# --- RGB Light Control ---
+light:
+  - platform: rgb
+    name: "PLP RGB Lights"
+    red: red_channel
+    green: green_channel
+    blue: blue_channel
+
+output:
+  - platform: template
+    id: red_channel
+    type: float
+    write_action:
+      - lambda: |-
+          id(plp_r) = int(state * 255.0);
+          std::string cmd = std::string("PC") +
+            std::string(id(plp_r) < 100 ? (id(plp_r) < 10 ? "00" : "0") : "") + std::to_string(id(plp_r)) +
+            std::string(id(plp_g) < 100 ? (id(plp_g) < 10 ? "00" : "0") : "") + std::to_string(id(plp_g)) +
+            std::string(id(plp_b) < 100 ? (id(plp_b) < 10 ? "00" : "0") : "") + std::to_string(id(plp_b)) + "\r";
+          id(rs485_uart).write_str(cmd.c_str());
+
+  - platform: template
+    id: green_channel
+    type: float
+    write_action:
+      - lambda: |-
+          id(plp_g) = int(state * 255.0);
+          std::string cmd = std::string("PC") +
+            std::string(id(plp_r) < 100 ? (id(plp_r) < 10 ? "00" : "0") : "") + std::to_string(id(plp_r)) +
+            std::string(id(plp_g) < 100 ? (id(plp_g) < 10 ? "00" : "0") : "") + std::to_string(id(plp_g)) +
+            std::string(id(plp_b) < 100 ? (id(plp_b) < 10 ? "00" : "0") : "") + std::to_string(id(plp_b)) + "\r";
+          id(rs485_uart).write_str(cmd.c_str());
+
+  - platform: template
+    id: blue_channel
+    type: float
+    write_action:
+      - lambda: |-
+          id(plp_b) = int(state * 255.0);
+          std::string cmd = std::string("PC") +
+            std::string(id(plp_r) < 100 ? (id(plp_r) < 10 ? "00" : "0") : "") + std::to_string(id(plp_r)) +
+            std::string(id(plp_g) < 100 ? (id(plp_g) < 10 ? "00" : "0") : "") + std::to_string(id(plp_g)) +
+            std::string(id(plp_b) < 100 ? (id(plp_b) < 10 ? "00" : "0") : "") + std::to_string(id(plp_b)) + "\r";
+          id(rs485_uart).write_str(cmd.c_str());
+
+# --- Brightness Slider ---
+number:
+  - platform: template
+    name: "PLP Brightness"
+    min_value: 0
+    max_value: 100
+    step: 1
+    mode: slider
+    optimistic: true
+    set_action:
+      - lambda: |-
+          int value = int(x);
+          std::string padded = (value < 10 ? "00" : (value < 100 ? "0" : "")) + std::to_string(value);
+          std::string cmd = "PD" + padded + "\r";
+          id(rs485_uart).write_str(cmd.c_str());
+
+# --- Relay Control ---
+switch:  
+  - platform: template
+    name: "LED Control"
+    turn_on_action:
+      - uart.write: { id: rs485_uart, data: [0x50, 0x4C, 0x31, 0x0D] }  # PL1\r
+    turn_off_action:
+      - uart.write: { id: rs485_uart, data: [0x50, 0x4C, 0x30, 0x0D] }  # PL0\r
+    optimistic: true
+
+  - platform: template
+    name: "Relay A"
+    turn_on_action:
+      - uart.write: { id: rs485_uart, data: [0x50, 0x52, 0x41, 0x31, 0x0D] }  # PRA1\r
+    turn_off_action:
+      - uart.write: { id: rs485_uart, data: [0x50, 0x52, 0x41, 0x30, 0x0D] }  # PRA0\r
+    optimistic: true
+
+  - platform: template
+    name: "Relay B"
+    turn_on_action:
+      - uart.write: { id: rs485_uart, data: [0x50, 0x52, 0x42, 0x31, 0x0D] }  # PRB1\r
+    turn_off_action:
+      - uart.write: { id: rs485_uart, data: [0x50, 0x52, 0x42, 0x30, 0x0D] }  # PRB0\r
+    optimistic: true
+
+# --- Scene Navigation Buttons ---
+button:
+  - platform: template
+    name: "PLP Sync"
+    on_press:
+      - uart.write: { id: rs485_uart, data: [0x50, 0x73, 0x53, 0x0D] }  # PsS\r
+      - lambda: |-
+          auto time = id(homeassistant_time).now();
+          char buffer[30];
+          sprintf(buffer, "Last Sync: %02d:%02d:%02d", time.hour, time.minute, time.second);
+          id(last_sync).publish_state(buffer);
+
+  - platform: template
+    name: "PLP Next Scene"
+    on_press:
+      - uart.write: { id: rs485_uart, data: [0x50, 0x73, 0x55, 0x0D] }  # PsU\r
+
+  - platform: template
+    name: "PLP Previous Scene"
+    on_press:
+      - uart.write: { id: rs485_uart, data: [0x50, 0x73, 0x44, 0x0D] }  # PsD\r
+
+
+# --- Text Sensor to Display Last Sync Time ---
+text_sensor:
+  - platform: template
+    name: "PLP Last Sync"
+    id: last_sync
+    update_interval: never  # Only updates when button is pressed
+
+# --- Time Component for Timestamp ---
+time:
+  - platform: homeassistant
+    id: homeassistant_time
+
+# Simple sensor to confirm data exchange
+sensor:
+  - platform: uptime
+    name: "ESP32S3 Uptime"
+
+
+# Enable Home Assistant API
+api:
+  encryption:
+    key: !secret API_key
+
+ota:
+  - platform: esphome
+    password: "14d3726de0e90046561a23c7fadd737b"
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+  ap:
+    ssid: "Duratech-Led Fallback Hotspot"
+    password: "1ZNeJVtzO7H3"
+
+captive_portal:
