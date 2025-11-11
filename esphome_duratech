@@ -95,14 +95,8 @@ select:
             id(rs485_uart).write_str(temp_map[x].c_str());
           }
 
-# --- RGB Light Control ---
-light:
-  - platform: rgb
-    name: "PLP RGB Lights"
-    red: red_channel
-    green: green_channel
-    blue: blue_channel
 
+# --- RGB Outputs ---
 output:
   - platform: template
     id: red_channel
@@ -110,11 +104,7 @@ output:
     write_action:
       - lambda: |-
           id(plp_r) = int(state * 255.0);
-          std::string cmd = std::string("PC") +
-            std::string(id(plp_r) < 100 ? (id(plp_r) < 10 ? "00" : "0") : "") + std::to_string(id(plp_r)) +
-            std::string(id(plp_g) < 100 ? (id(plp_g) < 10 ? "00" : "0") : "") + std::to_string(id(plp_g)) +
-            std::string(id(plp_b) < 100 ? (id(plp_b) < 10 ? "00" : "0") : "") + std::to_string(id(plp_b)) + "\r";
-          id(rs485_uart).write_str(cmd.c_str());
+          id(send_rgb).execute();
 
   - platform: template
     id: green_channel
@@ -122,11 +112,7 @@ output:
     write_action:
       - lambda: |-
           id(plp_g) = int(state * 255.0);
-          std::string cmd = std::string("PC") +
-            std::string(id(plp_r) < 100 ? (id(plp_r) < 10 ? "00" : "0") : "") + std::to_string(id(plp_r)) +
-            std::string(id(plp_g) < 100 ? (id(plp_g) < 10 ? "00" : "0") : "") + std::to_string(id(plp_g)) +
-            std::string(id(plp_b) < 100 ? (id(plp_b) < 10 ? "00" : "0") : "") + std::to_string(id(plp_b)) + "\r";
-          id(rs485_uart).write_str(cmd.c_str());
+          id(send_rgb).execute();
 
   - platform: template
     id: blue_channel
@@ -134,27 +120,35 @@ output:
     write_action:
       - lambda: |-
           id(plp_b) = int(state * 255.0);
-          std::string cmd = std::string("PC") +
-            std::string(id(plp_r) < 100 ? (id(plp_r) < 10 ? "00" : "0") : "") + std::to_string(id(plp_r)) +
-            std::string(id(plp_g) < 100 ? (id(plp_g) < 10 ? "00" : "0") : "") + std::to_string(id(plp_g)) +
-            std::string(id(plp_b) < 100 ? (id(plp_b) < 10 ? "00" : "0") : "") + std::to_string(id(plp_b)) + "\r";
-          id(rs485_uart).write_str(cmd.c_str());
+          id(send_rgb).execute();
 
-# --- Brightness Slider ---
-number:
-  - platform: template
-    name: "PLP Brightness"
-    min_value: 0
-    max_value: 100
-    step: 1
-    mode: slider
-    optimistic: true
-    set_action:
+script:
+  - id: send_rgb
+    mode: restart
+    then:
+      - delay: 200ms
       - lambda: |-
-          int value = int(x);
-          std::string padded = (value < 10 ? "00" : (value < 100 ? "0" : "")) + std::to_string(value);
-          std::string cmd = "PD" + padded + "\r";
-          id(rs485_uart).write_str(cmd.c_str());
+          char cmd[20];
+          sprintf(cmd, "PC%03d%03d%03d\r", id(plp_r), id(plp_g), id(plp_b));
+          id(rs485_uart).write_str(cmd);
+
+# --- RGB Light using outputs ---
+light:
+  - platform: rgb
+    name: "PLP RGB Lights"
+    id: "PLP_RGB_Lights"
+    red: red_channel
+    green: green_channel
+    blue: blue_channel    
+    on_state:
+      then:
+        - lambda: |-
+            // Sync brightness from HA light to RS485
+            ESP_LOGI("plp", "Sending brightness: %d", int(id(PLP_RGB_Lights).remote_values.get_brightness()*100));
+            int brightness =  int(id(PLP_RGB_Lights).remote_values.get_brightness()*100);
+            char cmd[10];
+            sprintf(cmd, "PD%03d\r", brightness);
+            id(rs485_uart).write_str(cmd);
 
 # --- Relay Control ---
 switch:  
